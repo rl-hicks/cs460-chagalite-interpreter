@@ -1,12 +1,9 @@
 #include "p2_tokenizer.h"
 
-//#include "Tokenizer.h"
 #include <cctype>
 #include <charconv>
 #include <limits>
 #include <system_error>
-
-
 
 // ------------------------- Static Keyword Set ------------------------- //
 const std::unordered_set<std::string> Tokenizer::KEYWORDS = {
@@ -16,7 +13,6 @@ const std::unordered_set<std::string> Tokenizer::KEYWORDS = {
     "TRUE", "FALSE",
     "getchar", "printf", "sizeof"
 };
-
 
 // ------------------------- Public Entry ------------------------- //
 bool Tokenizer::tokenize(std::istream& input,
@@ -51,7 +47,7 @@ bool Tokenizer::tokenize(std::istream& input,
             case WORD:
                 if (!scanWord(input, tokens, lineNumber)) {
                     errorLine = lineNumber;
-                    errorMsg = "invalid identifier";
+                    errorMsg = "invalid identifier.";
                     return false;
                 }
                 break;
@@ -76,12 +72,16 @@ bool Tokenizer::tokenize(std::istream& input,
 
             case UNKNOWN:
                 errorLine = lineNumber;
-                errorMsg = "unexpected character";
+                errorMsg = "unexpected character.";
                 return false;
 
             default:
                 break;
         }
+    }
+
+    if (!validateTokenSequence(tokens, errorLine, errorMsg)) {
+        return false;
     }
 
     return true;
@@ -95,17 +95,19 @@ TokenizerDFAStates Tokenizer::determineDFAState(std::istream& in, char c)
     if (c == '\n') return NEWLINE;
     if (isSpace(c)) return SPACE;
 
+    // string detection before number detection
+    if (c == '"' || c == '\'') return STRING;
+
     if (isLetterOrUnderscore(c)) return WORD;
 
     int nextInt = in.peek();
     char next = (nextInt == traits::eof()) ? '\0' : static_cast<char>(nextInt);
 
     if (std::isdigit((unsigned char)c)) return NUMBER;
-    if ((c == '+' || c == '-') && nextInt != traits::eof() && std::isdigit((unsigned char)next)) {
+    if ((c == '+' || c == '-') && nextInt != traits::eof() &&
+        std::isdigit((unsigned char)next)) {
         return NUMBER;
     }
-
-    if (c == '"' || c == '\'') return STRING;
 
     if (nextInt != traits::eof() && isDoubleOperator(c, next)) return SYMBOL;
     if (isSingleOperator(c)) return SYMBOL;
@@ -152,16 +154,18 @@ bool Tokenizer::scanNumber(std::istream& in,
                            std::string& errorMsg)
 {
     std::string buffer;
+    bool negative = false;
 
     // Optional sign
     int p = in.peek();
     if (p != std::char_traits<char>::eof() && (p == '+' || p == '-')) {
         char sign = static_cast<char>(in.get());
         buffer.push_back(sign);
+        negative = (sign == '-');
 
         int p2 = in.peek();
-        // If sign not followed by digit => treat as operator token
-        if (!(p2 != std::char_traits<char>::eof() && std::isdigit((unsigned char)p2))) {
+        if (!(p2 != std::char_traits<char>::eof() &&
+              std::isdigit((unsigned char)p2))) {
             Token tok;
             tok.type = (sign == '+') ? PLUS : MINUS;
             tok.content = std::string(1, sign);
@@ -173,45 +177,59 @@ bool Tokenizer::scanNumber(std::istream& in,
 
     // Must have at least one digit
     p = in.peek();
-    if (!(p != std::char_traits<char>::eof() && std::isdigit((unsigned char)p))) {
+    if (!(p != std::char_traits<char>::eof() &&
+          std::isdigit((unsigned char)p))) {
         errorLine = lineNumber;
-        errorMsg  = "invalid integer";
+        errorMsg  = "invalid integer.";
         return false;
     }
 
     // Read digits
+    std::string digitsOnly;
     while (true) {
         int d = in.peek();
-        if (d == std::char_traits<char>::eof() || !std::isdigit((unsigned char)d)) break;
-        buffer.push_back(static_cast<char>(in.get()));
+        if (d == std::char_traits<char>::eof() ||
+            !std::isdigit((unsigned char)d)) {
+            break;
+        }
+
+        char digitChar = static_cast<char>(in.get());
+        buffer.push_back(digitChar);
+        digitsOnly.push_back(digitChar);
     }
 
-    // If immediately followed by alpha/_ => invalid integer (e.g. 123abc)
+    // If immediately followed by alpha/_ => invalid integer
     p = in.peek();
     if (p != std::char_traits<char>::eof() &&
         (std::isalpha((unsigned char)p) || p == '_')) {
         errorLine = lineNumber;
-        errorMsg  = "invalid integer";
+        errorMsg  = "invalid integer.";
         return false;
     }
 
-    // Overflow / range check (int32)
+    // Range check using digits-only parse, then apply sign manually
     {
-        long long value = 0;
-        const char* begin = buffer.data();
-        const char* end   = buffer.data() + buffer.size();
+        long long magnitude = 0;
+        auto res = std::from_chars(
+            digitsOnly.data(),
+            digitsOnly.data() + digitsOnly.size(),
+            magnitude,
+            10
+        );
 
-        auto res = std::from_chars(begin, end, value, 10);
-        if (res.ec != std::errc{} || res.ptr != end) {
+        if (res.ec != std::errc{} ||
+            res.ptr != digitsOnly.data() + digitsOnly.size()) {
             errorLine = lineNumber;
-            errorMsg  = "invalid integer";
+            errorMsg  = "invalid integer.";
             return false;
         }
+
+        long long value = negative ? -magnitude : magnitude;
 
         if (value < std::numeric_limits<int>::min() ||
             value > std::numeric_limits<int>::max()) {
             errorLine = lineNumber;
-            errorMsg  = "invalid integer";
+            errorMsg  = "invalid integer.";
             return false;
         }
     }
@@ -226,8 +244,6 @@ bool Tokenizer::scanNumber(std::istream& in,
 }
 
 // ------------------------- Scan STRING ------------------------- //
-// Produces ONE token for the full literal, including surrounding quotes.
-// Example content:  "hello"  or  'a'
 bool Tokenizer::scanString(std::istream& in,
                            std::vector<Token>& out,
                            int& lineNumber,
@@ -237,15 +253,14 @@ bool Tokenizer::scanString(std::istream& in,
     char quote;
     if (!in.get(quote)) {
         errorLine = lineNumber;
-        errorMsg  = "unterminated string";
+        errorMsg  = "unterminated string quote.";
         return false;
     }
 
     if (quote != '"' && quote != '\'') {
-        // defensive: caller misclassified
         in.unget();
         errorLine = lineNumber;
-        errorMsg  = "unterminated string";
+        errorMsg  = "unterminated string quote.";
         return false;
     }
 
@@ -254,31 +269,30 @@ bool Tokenizer::scanString(std::istream& in,
 
     char c;
     while (in.get(c)) {
+        if (c == '\n') {
+            // ++lineNumber;
+            errorLine = lineNumber;
+            errorMsg  = "unterminated string quote.";
+            return false;
+        }
+
         buffer.push_back(c);
 
         if (c == '\\') {
-            // escape: keep next char too
             char e;
             if (!in.get(e)) {
                 errorLine = lineNumber;
-                errorMsg  = "unterminated string";
+                errorMsg  = "unterminated string quote.";
                 return false;
             }
             buffer.push_back(e);
             continue;
         }
 
-        if (c == '\n') {
-            // string not allowed to span newline in this tokenizer
-            errorLine = lineNumber;
-            errorMsg  = "unterminated string";
-            return false;
-        }
-
         if (c == quote) {
             Token tok;
             tok.type = TOKEN_STRING;
-            tok.content = buffer;   // includes quotes
+            tok.content = buffer;
             tok.lineNum = lineNumber;
             out.push_back(std::move(tok));
             return true;
@@ -286,7 +300,7 @@ bool Tokenizer::scanString(std::istream& in,
     }
 
     errorLine = lineNumber;
-    errorMsg  = "unterminated string";
+    errorMsg  = "unterminated string quote.";
     return false;
 }
 
@@ -300,7 +314,7 @@ bool Tokenizer::scanSymbol(std::istream& in,
     char first;
     if (!in.get(first)) {
         errorLine = lineNumber;
-        errorMsg  = "unexpected character";
+        errorMsg  = "unexpected character.";
         return false;
     }
 
@@ -308,7 +322,7 @@ bool Tokenizer::scanSymbol(std::istream& in,
     if (p != std::char_traits<char>::eof()) {
         char next = static_cast<char>(p);
         if (isDoubleOperator(first, next)) {
-            in.get(); // consume second char
+            in.get();
 
             std::string two;
             two.push_back(first);
@@ -335,8 +349,99 @@ bool Tokenizer::scanSymbol(std::istream& in,
     }
 
     errorLine = lineNumber;
-    errorMsg  = "unexpected character";
+    errorMsg  = "unexpected character.";
     return false;
+}
+
+// ------------------------- Validation Helpers ------------------------- //
+bool Tokenizer::isReservedWord(const Token& tok) const
+{
+    return tok.type == KEYWORD;
+}
+
+bool Tokenizer::isDatatypeKeyword(const Token& tok) const
+{
+    return tok.type == KEYWORD &&
+           (tok.content == "int" || tok.content == "char" || tok.content == "bool");
+}
+
+// ------------------------- Validation Pass ------------------------- //
+bool Tokenizer::validateTokenSequence(const std::vector<Token>& tokens,
+                                      int& errorLine,
+                                      std::string& errorMsg) const
+{
+    for (size_t i = 0; i < tokens.size(); ++i) {
+        const Token& tok = tokens[i];
+
+        // function <type> <name>
+        if (tok.type == KEYWORD && tok.content == "function") {
+			if (i + 2 < tokens.size()) {
+				const Token& nameTok = tokens[i + 2];
+				if (isReservedWord(nameTok)) {
+					errorLine = nameTok.lineNum;
+					errorMsg =
+						"reserved word \"" + nameTok.content +
+						"\" cannot be used for the\nname of a function.";
+					return false;
+				}
+			}
+		}
+
+        // procedure <name> , but allow procedure main
+        if (tok.type == KEYWORD && tok.content == "procedure") {
+            if (i + 1 < tokens.size()) {
+                const Token& nameTok = tokens[i + 1];
+                if (isReservedWord(nameTok) && nameTok.content != "main") {
+                    errorLine = nameTok.lineNum;
+                    errorMsg =
+                        "reserved word \"" + nameTok.content +
+                        "\" cannot be used for the name\nof a variable.";
+                    return false;
+                }
+            }
+        }
+
+        // datatype name / parameter checks
+        if (isDatatypeKeyword(tok)) {
+            if (i + 1 >= tokens.size()) continue;
+
+            const Token& nameTok = tokens[i + 1];
+
+            if (isReservedWord(nameTok)) {
+                errorLine = nameTok.lineNum;
+                errorMsg =
+                    "reserved word \"" + nameTok.content +
+                    "\" cannot be used for the name\nof a variable.";
+                return false;
+            }
+
+            if (i + 2 < tokens.size() && tokens[i + 2].type == LBRACKET) {
+                if (i + 3 >= tokens.size()) continue;
+
+                const Token& sizeTok = tokens[i + 3];
+
+                if (sizeTok.type != INTEGER) {
+                    errorLine = sizeTok.lineNum;
+                    errorMsg = "array declaration size must be a positive integer.";
+                    return false;
+                }
+
+                long long sizeValue = 0;
+                const char* begin = sizeTok.content.data();
+                const char* end   = sizeTok.content.data() + sizeTok.content.size();
+
+                auto res = std::from_chars(begin, end, sizeValue, 10);
+
+                if (res.ec != std::errc{} || res.ptr != end || sizeValue <= 0) {
+                    errorLine = sizeTok.lineNum;
+                    errorMsg = "array declaration size must be a positive integer.";
+                    return false;
+                }
+            }
+        }
+    }
+
+    return true;
 }
 
 // ------------------------- Operator Classification ------------------------- //

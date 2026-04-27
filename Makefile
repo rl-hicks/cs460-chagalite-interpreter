@@ -1,25 +1,24 @@
-CXX := g++
-CXXFLAGS := -std=c++20 -Wall -Wextra -Wpedantic -O0 -g -Iinclude
+CXX = g++
+CXXFLAGS = -std=c++17 -Wall -Wextra -Iinclude
 
-TARGET := main
+TARGET = main
 
-SRCS := $(wildcard src/*.cpp)
-OBJS := $(patsubst src/%.cpp, build/%.o, $(SRCS))
+SRC = src/main.cpp \
+      src/p1_remove_comments.cpp \
+      src/p2_tokenizer.cpp \
+      src/p3_parser.cpp \
+      src/p4_symbol_table.cpp
+
+OBJ = $(SRC:src/%.cpp=build/%.o)
 
 all: $(TARGET)
 
-$(TARGET): $(OBJS)
-	$(CXX) $(CXXFLAGS) $(OBJS) -o $(TARGET)
+$(TARGET): $(OBJ)
+	$(CXX) $(CXXFLAGS) -o $@ $^
 
-# Compile source files into build directory
-build/%.o: src/%.cpp | build
-	$(CXX) $(CXXFLAGS) -c $< -o $@
-
-# Ensure build directory exists
-build:
+build/%.o: src/%.cpp
 	mkdir -p build
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:
 	rm -rf build $(TARGET)
-
-.PHONY: all clean

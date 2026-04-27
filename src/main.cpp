@@ -3,226 +3,97 @@
 #include <sstream>
 #include <string>
 #include <filesystem>
-
+#include <vector>
 
 #include "p1_remove_comments.h"
 #include "p2_tokenizer.h"
 #include "p3_parser.h"
-
+#include "p4_symbol_table.h"
 
 std::string makeOutputName(const std::string& inputPath) {
     std::filesystem::path inPath(inputPath);
-
-    std::string stem = inPath.stem().string();  
-    // programming_assignment_2-test_file_1
+    std::string stem = inPath.stem().string();
 
     std::filesystem::path outPath =
-        std::filesystem::path("outputs/p3") /
+        std::filesystem::path("outputs/p4") /
         ("output-" + stem + ".txt");
 
     return outPath.string();
 }
 
-/*
-std::string makeOutputName(const std::string& inputPath) {
-    std::filesystem::path inPath(inputPath);
-
-    std::string stem = inPath.stem().string();
-
-    return "output-" + stem + ".txt";
-}
-*/
-
-// Converts enum to string
-std::string tokenTypeToString(ChagaLiteTokens type) {
-    switch (type) {
-
-        // Identifiers & keywords
-        case IDENTIFIER: return "IDENTIFIER";
-        case KEYWORD: return "KEYWORD";
-
-        // Literals
-        case INTEGER: return "INTEGER";
-        case TOKEN_STRING: return "STRING";
-
-        // Operators
-        case ASSIGN: return "ASSIGNMENT_OPERATOR";
-        case PLUS: return "PLUS";
-        case MINUS: return "MINUS";
-        case ASTERISK: return "ASTERISK";
-        case DIVIDE: return "DIVIDE";
-        case MODULO: return "MODULO";
-        case CARET: return "CARET";
-        case LT: return "LT";
-        case GT: return "GT";
-        case LE: return "LE";
-        case GE: return "GE";
-        case EQUALS: return "EQUALS";
-        case NOT_EQUALS: return "NOT_EQUALS";
-        case AND_AND: return "AND_AND";
-        case OR_OR: return "OR_OR";
-        case NOT: return "NOT";
-
-        // Delimiters
-        case LPAREN: return "L_PAREN";
-        case RPAREN: return "R_PAREN";
-        case LBRACKET: return "L_BRACKET";
-        case RBRACKET: return "R_BRACKET";
-        case LBRACE: return "L_BRACE";
-        case RBRACE: return "R_BRACE";
-        case COMMA: return "COMMA";
-        case SEMICOLON: return "SEMICOLON";
-
-        // Quotes
-        case DQUOTE: return "DOUBLE_QUOTE";
-        case SQUOTE: return "SINGLE_QUOTE";
-
-        // Special
-        case TOKEN_END_OF_FILE: return "END_OF_FILE";
-        case TOKEN_UNKNOWN: return "UNKNOWN";
-
-        default:
-            return "UNKNOWN";
-    }
-}
-
-
-
-void printTokens(const std::vector<Token>& tokens, std::ostream& out) {
-    out << "Token list:\n\n";
-
-    for (const Token& tok : tokens) {
-
-        std::string typeStr =
-            (tok.type == KEYWORD) ? "IDENTIFIER"
-                                  : tokenTypeToString(tok.type);
-
-        // Expand quoted STRING into 3 tokens (to match expected output)
-        if (typeStr == "STRING") {
-            const std::string& s = tok.content;
-
-            if (s.size() >= 2 && s.front() == '"' && s.back() == '"') {
-
-                out << "Token type: DOUBLE_QUOTE\n";
-                out << "Token:      \"\n\n";
-
-                out << "Token type: STRING\n";
-                out << "Token:      " << s.substr(1, s.size() - 2) << "\n\n";
-
-                out << "Token type: DOUBLE_QUOTE\n";
-                out << "Token:      \"\n\n";
-
-                continue;
-            }
-        }
-
-        out << "Token type: " << typeStr << "\n";
-        out << "Token:      " << tok.content << "\n\n";
-    }
-}
-
-
-
-
 int main(int argc, char* argv[])
 {
-	// Makes sure there's an inputfile
     if (argc < 2) {
-        std::cerr << "uh-oh: " << argv[0];
+        std::cerr << "Usage: " << argv[0] << " <input-file> [output-file]\n";
         return 1;
     }
 
-	// input == file name is second argument
-	// inputFile == inputPath
-	std::string inputPath = "inputs/p3/" + std::string(argv[1]);    
-    //std::cout << inputPath << std::endl;
+    // Assignment 4 test files should come from inputs/p4/
+    std::string inputPath = "inputs/p4/" + std::string(argv[1]);
+    std::string outputPath = (argc >= 3) ? argv[2] : makeOutputName(inputPath);
 
-    std::string outputPath;
-
-	// if output file is given use it, otherwise create it
-    if (argc >= 3) {
-        outputPath = argv[2];
-    } else {
-        outputPath = makeOutputName(inputPath);
-    }
-
-	// creates a input file stream obj for the input file
     std::ifstream inFile(inputPath);
     if (!inFile) {
         std::cerr << "Error: could not open input file: " << inputPath << "\n";
         return 1;
     }
 
-	// puts file contents into a string
     std::stringstream buffer;
     buffer << inFile.rdbuf();
     std::string sourceCode = buffer.str();
-    
-    // creates CommentRemover class obj and calls assignment 1
-    // puts the "cleaned" contents into string called cleaned
-	CommentRemover remover;
-	std::string cleaned = remover.removeComments(sourceCode);
-	if (cleaned.empty()) {
-		return 1;
-	}
-	
 
+    // Phase 1: remove comments, preserving line structure
+    CommentRemover remover;
+    std::string cleaned = remover.removeComments(sourceCode);
+    if (cleaned.empty()) {
+        return 1;
+    }
 
-
-	// =================================================================
-	// assignment 1
-	// puts the contents of cleaned into output file
-    //outFile << cleaned;
-    //outFile.close();
-    // =================================================================
-    
-    
-    
-    // =================================================================
-	// Assignment 2
+    // Phase 2: tokenize
     std::vector<Token> tokens;
-	int errorLine;
-	std::string errorMsg;
-	
-	std::istringstream cleanedIn(cleaned);
-	
-	Tokenizer tokenizer;
+    int errorLine = -1;
+    std::string errorMsg;
 
-	if (!tokenizer.tokenize(cleanedIn, tokens, errorLine, errorMsg)) {
-		std::cout << "Syntax error on line " << errorLine << ": " << errorMsg << "\n";
-		return 1; // no tokens printed
-	}
-	// =================================================================
-	
-	
-	// make sure outputs/p2 folder exists
-	std::filesystem::create_directories("outputs/p2");
-	
-	std::filesystem::remove(outputPath);
+    std::istringstream cleanedIn(cleaned);
+    Tokenizer tokenizer;
 
-	// open output file and overwrite it every run
-	//std::ofstream outFile(outputPath, std::ios::trunc);
-	std::ofstream outFile(outputPath, std::ios::out | std::ios::trunc);
-	if (!outFile) {
-		std::cerr << "Error: could not create output file: "
-				<< outputPath << "\n";
-		return 1;
-	}
+    if (!tokenizer.tokenize(cleanedIn, tokens, errorLine, errorMsg)) {
+        std::cout << "Syntax error on line " << errorLine << ": " << errorMsg << "\n";
+        return 1;
+    }
 
+    // Phase 3: parse CST
+    Parser parser(tokens);
+    CSTNode* root = nullptr;
 
+    try {
+        root = parser.parseProgram();
+    } catch (const std::exception& e) {
+        std::cerr << "Parse error: " << e.what() << "\n";
+        return 1;
+    }
 
+    // Phase 4: build symbol table + write assignment 4 output
+    std::filesystem::create_directories("outputs/p4");
+    std::filesystem::remove(outputPath);
 
+    std::ofstream outFile(outputPath, std::ios::out | std::ios::trunc);
+    if (!outFile) {
+        std::cerr << "Error: could not create output file: " << outputPath << "\n";
+        deleteTree(root);
+        return 1;
+    }
 
+    SymbolTableBuilder builder;
+    bool ok = builder.build(tokens, root, outFile);
 
-	printTokens(tokens, outFile);
-	outFile.close();
-	std::cout << "Output file created at: " << outputPath << "\n";
+    outFile.close();
+    deleteTree(root);
 
-    // printTokens(tokens, std::cout);
-    
-    
-    
+    if (!ok) {
+        return 1;
+    }
+
+    std::cout << "Output file created at: " << outputPath << "\n";
     return 0;
-
-    
 }

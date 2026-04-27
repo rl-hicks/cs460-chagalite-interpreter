@@ -17,9 +17,7 @@ struct CSTNode {
 };
 
 inline void addChild(CSTNode* parent, CSTNode* child) {
-    if (parent == nullptr || child == nullptr) {
-        return;
-    }
+    if (parent == nullptr || child == nullptr) return;
 
     if (parent->leftChild == nullptr) {
         parent->leftChild = child;
@@ -34,10 +32,7 @@ inline void addChild(CSTNode* parent, CSTNode* child) {
 }
 
 inline void deleteTree(CSTNode* root) {
-    if (root == nullptr) {
-        return;
-    }
-
+    if (root == nullptr) return;
     deleteTree(root->leftChild);
     deleteTree(root->rightSibling);
     delete root;
@@ -53,12 +48,51 @@ public:
         : tokens(tokenStream), current(0) {}
 
     const Token& peek() const;
+    const Token& previous() const;
     const Token& advance();
     bool match(ChagaLiteTokens type);
-    const Token& expect(ChagaLiteTokens type);
+    bool check(ChagaLiteTokens type) const;
+    const Token& expect(ChagaLiteTokens type, const std::string& message);
     bool isAtEnd() const;
 
     CSTNode* parseProgram();
+
+    CSTNode* parseFunctionDeclaration();
+    CSTNode* parseMainProcedure();
+    CSTNode* parseProcedureDeclaration();
+
+    CSTNode* parseBlockStatement();
+    CSTNode* parseCompoundStatement();
+    CSTNode* parseStatement();
+
+    CSTNode* parseDeclarationStatement();
+    CSTNode* parseAssignmentStatement();
+    CSTNode* parseSelectionStatement();
+    CSTNode* parseIterationStatement();
+    CSTNode* parseReturnStatement();
+    CSTNode* parsePrintfStatement();
+    CSTNode* parseProcedureCallStatement();
+
+    CSTNode* parseDatatypeSpecifier();
+    CSTNode* parseParameterList();
+    CSTNode* parseParameterDeclaration();
+    CSTNode* parseIdentifierList();
+    CSTNode* parseIdentifierOrArrayDeclarationList();
+
+    CSTNode* parseExpression();
+    CSTNode* parseBooleanExpression();
+    CSTNode* parseNumericalExpression();
+    CSTNode* parsePrimary();
+    CSTNode* parseFunctionCallExpression();
+    CSTNode* parseArgumentList();
+
+    CSTNode* makeLeaf(const Token& tok);
+    CSTNode* makeLeaf(const std::string& text);
+
+    bool isDatatypeKeyword() const;
+    bool isStatementStart() const;
+    bool isWord(const std::string& word) const;
+    bool isDatatypeWord() const;
 };
 
 #endif

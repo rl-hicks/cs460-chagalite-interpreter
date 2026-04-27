@@ -7,7 +7,6 @@
 #include <vector>
 #include <unordered_set>
 
-
 // ------------------------- DFA Categories ------------------------- //
 enum TokenizerDFAStates {
     WORD,
@@ -58,7 +57,7 @@ enum ChagaLiteTokens {
     COMMA,
     SEMICOLON,
 
-    // Quotes (only if you want to output them as separate tokens)
+    // Quotes
     DQUOTE,
     SQUOTE,
 
@@ -74,49 +73,53 @@ struct Token {
     int lineNum;
 };
 
-
-
-
 class Tokenizer {
 public:
-    // Constructor
     Tokenizer() = default;
-
-    // Destructor
     ~Tokenizer() = default;
 
-    // Main tokenization function
-	bool tokenize(std::istream& input, std::vector<Token>& tokens, 
-				  int& errorLine, std::string& errorMsg);
+    bool tokenize(std::istream& input,
+                  std::vector<Token>& tokens,
+                  int& errorLine,
+                  std::string& errorMsg);
 
 private:
-
-	// Keywords
     static const std::unordered_set<std::string> KEYWORDS;
-    
-    // Main category selector
+
     TokenizerDFAStates determineDFAState(std::istream& in, char c);
 
-	// Scan helpers
     bool scanWord(std::istream& in, std::vector<Token>& out, int& lineNumber);
-    bool scanNumber(std::istream& in, std::vector<Token>& out, int& lineNumber, int& errorLine, std::string& errorMsg);
-    bool scanString(std::istream& in, std::vector<Token>& out, int& lineNumber, int& errorLine, std::string& errorMsg);
-    bool scanSymbol(std::istream& in, std::vector<Token>& out, int& lineNumber, int& errorLine, std::string& errorMsg);
+    bool scanNumber(std::istream& in, std::vector<Token>& out, int& lineNumber,
+                    int& errorLine, std::string& errorMsg);
+    bool scanString(std::istream& in, std::vector<Token>& out, int& lineNumber,
+                    int& errorLine, std::string& errorMsg);
+    bool scanSymbol(std::istream& in, std::vector<Token>& out, int& lineNumber,
+                    int& errorLine, std::string& errorMsg);
 
-	// Character helpers
+    bool validateTokenSequence(const std::vector<Token>& tokens,
+                               int& errorLine,
+                               std::string& errorMsg) const;
+
+    bool isReservedWord(const Token& tok) const;
+    bool isDatatypeKeyword(const Token& tok) const;
+
     static inline bool isSpace(char c) {
         return c==' ' || c=='\t' || c=='\v' || c=='\f' || c=='\r';
     }
+
     static inline bool isLetterOrUnderscore(char c) {
         return std::isalpha((unsigned char)c) || c=='_';
     }
+
     static inline bool isLetterDigitOrUnderscore(char c) {
         return std::isalnum((unsigned char)c) || c=='_';
     }
+
     static inline bool isDoubleOperator(char a, char b) {
         return (a=='='&&b=='=') || (a=='!'&&b=='=') || (a=='<'&&b=='=') || (a=='>'&&b=='=') ||
                (a=='&'&&b=='&') || (a=='|'&&b=='|');
     }
+
     static inline bool isSingleOperator(char c) {
         switch (c) {
             case '=': case '+': case '-': case '*': case '/': case '%': case '^':
@@ -129,10 +132,7 @@ private:
         }
     }
 
-    // Operator classification
     ChagaLiteTokens classifyOperator(const std::string& text);
-
-
 };
 
 #endif // TOKENIZER_H

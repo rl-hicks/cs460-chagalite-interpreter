@@ -33,12 +33,8 @@ std::string CommentRemover::removeComments(const std::string& input) {
                     outputFileStream.put(c);
                 }
                 else if (c == '*') {
-					std::istream::int_type next = inputFileStream.peek();
-					// std::cout<< "executed" << std::endl;
-					if (next != std::char_traits<char>::eof() && static_cast<char>(next) == '/') {
-						std::cerr << "ERROR: Program contains C-style, unterminated comment on line " << open << std::endl;
-						return std::string{};
-					}
+					// Just output the character normally
+					outputFileStream.put(c);
 				}
                 else {
                     outputFileStream.put(c);
