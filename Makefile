@@ -21,4 +21,11 @@ build/%.o: src/%.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:
-	rm -rf build $(TARGET)
+	rm -rf build/
+	rm -f $(TARGET)
+	rm -f outputs/*
+	rm -f *:Zone.Identifier
+	rm -f inputs/*:Zone.Identifier
+	rm -f inputs/p5/*:Zone.Identifier
+
+.PHONY: all clean
