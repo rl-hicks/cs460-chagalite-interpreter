@@ -23,7 +23,7 @@ build/%.o: src/%.cpp
 clean:
 	rm -rf build/
 	rm -f $(TARGET)
-	rm -f outputs/*
+	rm -rf outputs/*
 	rm -f *:Zone.Identifier
 	rm -f inputs/*:Zone.Identifier
 	rm -f inputs/p5/*:Zone.Identifier
