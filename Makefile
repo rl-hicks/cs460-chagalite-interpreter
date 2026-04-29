@@ -7,7 +7,8 @@ SRC = src/main.cpp \
       src/p1_remove_comments.cpp \
       src/p2_tokenizer.cpp \
       src/p3_parser.cpp \
-      src/p4_symbol_table.cpp
+      src/p4_symbol_table.cpp \
+      src/p5_ast.cpp
 
 OBJ = $(SRC:src/%.cpp=build/%.o)
 
@@ -24,8 +25,5 @@ clean:
 	rm -rf build/
 	rm -f $(TARGET)
 	rm -rf outputs/*
-	rm -f *:Zone.Identifier
-	rm -f inputs/*:Zone.Identifier
-	rm -f inputs/p5/*:Zone.Identifier
 
 .PHONY: all clean

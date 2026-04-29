@@ -30,13 +30,25 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    std::string inputPath = argv[1];
+    std::string inputArg = argv[1];
+    std::filesystem::path inputPath(inputArg);
+
+    if (!std::filesystem::exists(inputPath)) {
+        std::filesystem::path fallback =
+            std::filesystem::path("inputs/p5") / inputArg;
+
+        if (std::filesystem::exists(fallback)) {
+            inputPath = fallback;
+        }
+    }
+
     std::ifstream inFile(inputPath);
 
     if (!inFile) {
-        std::cerr << "Error: Cannot open input file.\n";
+        std::cerr << "Error: Cannot open input file: "
+                  << inputPath << "\n";
         return 1;
-    }
+ }
 
     std::stringstream buffer;
     buffer << inFile.rdbuf();
