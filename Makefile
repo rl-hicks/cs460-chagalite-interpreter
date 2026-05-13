@@ -1,14 +1,15 @@
 CXX = g++
 CXXFLAGS = -std=c++17 -Wall -Wextra -Iinclude
 
-TARGET = main
+TARGET = p6
 
 SRC = src/main.cpp \
       src/p1_remove_comments.cpp \
       src/p2_tokenizer.cpp \
       src/p3_parser.cpp \
       src/p4_symbol_table.cpp \
-      src/p5_ast.cpp
+      src/p5_ast.cpp \
+      src/p6_interpreter.cpp
 
 OBJ = $(SRC:src/%.cpp=build/%.o)
 

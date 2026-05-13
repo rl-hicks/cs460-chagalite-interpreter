@@ -144,10 +144,12 @@ std::vector<std::string> expandLiteralToken(const std::string& text) {
 
 std::string stripPrintfLiteral(const std::string& text) {
     if (isQuotedLiteral(text, '\'') || isQuotedLiteral(text, '"')) {
-        return trimOuterSpaces(text.substr(1, text.size() - 2));
+        // Preserve leading/trailing spaces inside string literals.
+        // This matters for printf(", ") in Assignment 6.
+        return text.substr(1, text.size() - 2);
     }
 
-    return trimOuterSpaces(text);
+    return text;
 }
 
 } // namespace
@@ -186,55 +188,15 @@ void ASTBuilder::parseTopLevel(ASTNode* root) {
 }
 
 void ASTBuilder::parseDeclaration(ASTNode* parent) {
-    const bool isGlobalVariableDeclaration =
-        parent != nullptr &&
-        parent->label == "PROGRAM" &&
-        !isAtEnd() &&
-        isDatatypeKeyword(peek());
-
-    if (isGlobalVariableDeclaration) {
-        size_t scan = current;
-        int declarationCount = 0;
-        bool expectIdentifier = false;
-
-        while (tokensRef != nullptr &&
-               scan < tokensRef->size() &&
-               (*tokensRef)[scan].type != SEMICOLON &&
-               (*tokensRef)[scan].type != LBRACE &&
-               (*tokensRef)[scan].type != TOKEN_END_OF_FILE) {
-            const Token& tok = (*tokensRef)[scan];
-
-            if (isDatatypeKeyword(tok) || tok.type == COMMA) {
-                expectIdentifier = true;
-            } else if (expectIdentifier && tok.type == IDENTIFIER) {
-                ++declarationCount;
-                expectIdentifier = false;
-            }
-
-            ++scan;
-        }
-
-        if (declarationCount <= 0) declarationCount = 1;
-
-        for (int i = 0; i < declarationCount; ++i) {
-            addASTChild(parent, makeNode("DECLARATION"));
-        }
-
-        while (!isAtEnd() && !check(SEMICOLON) && !check(LBRACE)) {
-            advance();
-        }
-
-        match(SEMICOLON);
-        return;
-    }
-
-    addASTChild(parent, makeNode("DECLARATION"));
+    std::vector<Token> declarationTokens;
 
     while (!isAtEnd() &&
            !check(SEMICOLON) &&
            !check(LBRACE)) {
-        advance();
+        declarationTokens.push_back(advance());
     }
+
+    addASTChild(parent, makeNode("DECLARATION", tokensToStrings(declarationTokens)));
 
     if (match(SEMICOLON)) {
         return;

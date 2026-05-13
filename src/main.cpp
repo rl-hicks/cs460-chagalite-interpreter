@@ -1,15 +1,16 @@
-#include <iostream>
+#include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <sstream>
-#include <vector>
 #include <string>
+#include <vector>
 
 #include "p1_remove_comments.h"
 #include "p2_tokenizer.h"
 #include "p3_parser.h"
-#include "p5_ast.h"   // NEW
-
-#include <filesystem>
+#include "p4_symbol_table.h"
+#include "p5_ast.h"
+#include "p6_interpreter.h"
 
 std::string makeOutputName(const std::string& inputPath) {
     std::filesystem::path inPath(inputPath);
@@ -18,45 +19,51 @@ std::string makeOutputName(const std::string& inputPath) {
     std::filesystem::path outDir = "outputs";
     std::filesystem::create_directories(outDir);
 
-    std::filesystem::path outPath =
-        outDir / ("output-" + stem + ".txt");
-
+    std::filesystem::path outPath = outDir / ("output-" + stem + ".txt");
     return outPath.string();
+}
+
+std::filesystem::path resolveInputPath(const std::string& inputArg) {
+    std::filesystem::path inputPath(inputArg);
+
+    if (std::filesystem::exists(inputPath)) {
+        return inputPath;
+    }
+
+    const std::filesystem::path fallbackP6 = std::filesystem::path("inputs/p6") / inputArg;
+    if (std::filesystem::exists(fallbackP6)) {
+        return fallbackP6;
+    }
+
+    const std::filesystem::path fallbackInputs = std::filesystem::path("inputs") / inputArg;
+    if (std::filesystem::exists(fallbackInputs)) {
+        return fallbackInputs;
+    }
+
+    return inputPath;
 }
 
 int main(int argc, char* argv[]) {
     if (argc != 2) {
-        std::cerr << "Usage: ./main <input_file>\n";
+        std::cerr << "Usage: ./p6 <input_file>\n";
         return 1;
     }
 
-    std::string inputArg = argv[1];
-    std::filesystem::path inputPath(inputArg);
-
-    if (!std::filesystem::exists(inputPath)) {
-        std::filesystem::path fallback =
-            std::filesystem::path("inputs/p5") / inputArg;
-
-        if (std::filesystem::exists(fallback)) {
-            inputPath = fallback;
-        }
-    }
+    const std::filesystem::path inputPath = resolveInputPath(argv[1]);
 
     std::ifstream inFile(inputPath);
-
     if (!inFile) {
-        std::cerr << "Error: Cannot open input file: "
-                  << inputPath << "\n";
+        std::cerr << "Error: Cannot open input file: " << inputPath << "\n";
         return 1;
- }
+    }
 
     std::stringstream buffer;
     buffer << inFile.rdbuf();
-    std::string input = buffer.str();
+    const std::string input = buffer.str();
 
     // ---------------- P1: Remove Comments ----------------
     CommentRemover remover;
-    std::string noComments = remover.removeComments(input);
+    const std::string noComments = remover.removeComments(input);
 
     // ---------------- P2: Tokenize ----------------
     std::istringstream tokenStream(noComments);
@@ -71,7 +78,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // ---------------- P3: Parse (CST) ----------------
+    // ---------------- P3: Parse CST ----------------
     Parser parser(tokens);
     CSTNode* cstRoot = nullptr;
 
@@ -82,24 +89,48 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    // ---------------- P4: Build Symbol Table ----------------
+    SymbolTableBuilder symbolTable;
+    std::ostringstream symbolTableOutput;
+
+    if (!symbolTable.build(tokens, cstRoot, symbolTableOutput)) {
+        std::cerr << symbolTableOutput.str();
+        deleteTree(cstRoot);
+        return 1;
+    }
+
     // ---------------- P5: Build AST ----------------
     ASTBuilder astBuilder;
     ASTNode* astRoot = astBuilder.build(tokens, cstRoot);
 
-    // ---------------- Output ----------------
-    std::string outputPath = makeOutputName(inputPath);
-    std::ofstream outFile(outputPath);
-
-    if (!outFile) {
-        std::cerr << "Error: Cannot create output file.\n";
+    if (astRoot == nullptr) {
+        std::cerr << "Error: Failed to build AST.\n";
+        deleteTree(cstRoot);
         return 1;
     }
 
-    printASTBreadthFirst(astRoot, outFile);
+    // ---------------- P6: Interpret Program ----------------
+    const std::string outputPath = makeOutputName(inputPath.string());
+    std::ofstream outFile(outputPath);
+
+    if (!outFile) {
+        std::cerr << "Error: Cannot create output file: " << outputPath << "\n";
+        deleteAST(astRoot);
+        deleteTree(cstRoot);
+        return 1;
+    }
+
+    Interpreter interpreter;
+    const bool executed = interpreter.execute(astRoot, symbolTable, outFile);
 
     // ---------------- Cleanup ----------------
-    deleteTree(cstRoot);   // from p3_parser.h :contentReference[oaicite:0]{index=0}
     deleteAST(astRoot);
+    deleteTree(cstRoot);
+
+    if (!executed) {
+        std::cerr << "Error: Program interpretation failed.\n";
+        return 1;
+    }
 
     return 0;
 }
